@@ -26,7 +26,9 @@ function git-forget-blob()
   git filter-branch --index-filter "git rm --cached --ignore-unmatch $@" --force -- --branches --tags $first_occurrence^..
   echo "Wipe out refs..."
   rm -rf .git/refs/original/ .git/refs/remotes/ .git/*_HEAD .git/logs/
-  (git for-each-ref --format="%(refname)" refs/original/ || echo :) | xargs --no-run-if-empty -n1 git update-ref -d
+  for r in `git for-each-ref --format="%(refname)" refs/original/`; do
+    git update-ref -d $r
+  done
   echo "Wipe out reflog..."
   git reflog expire --expire-unreachable=now --all
   git repack -q -A -d
