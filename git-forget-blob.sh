@@ -14,22 +14,16 @@ function git-forget-blob()
   test -d .git || { echo "Need to be at the base of a Git repository." && return 1; }
   git repack -Aq
   ls .git/objects/pack/*.idx &>/dev/null || {
-    echo "There is nothing to be forgotten in this repository." && return; 
+    echo "There is nothing to be forgotten in this repository." && return 1;
   }
-  echo "Read blobs..."
-  local BLOBS=( $( git verify-pack -v .git/objects/pack/*.idx | grep blob | awk '{ print $1 }' ) )
-  for ref in "${BLOBS[@]}"; do
-    local FILE
-    FILE=$( git rev-list --objects --all | grep "$ref" | cut -d" "  -f2- )
-    [[ "$FILE" == "$1" ]] && break
-    unset FILE
-  done
-  [[ "$FILE" == "" ]] && { echo "$1 not found in the repository history." && return; }
+
+  first_occurrence=`git log --reverse -1 -- $@`
+  [ -z "$first_occurrence" ] && { echo "$@ not found in the repository history." && return 1; }
 
   echo "Wipe out remotes..."
-  git branch -a | grep "remotes\/" | awk '{ print $1 }' | cut -f2 -d/ | while read -r r; do git remote rm "$r" 2>/dev/null; done
+  git remote | xargs -n1 git remote rm
   echo "Modify history..."
-  git filter-branch --index-filter "git rm --cached --ignore-unmatch '$FILE'" --force -- --branches --tags
+  git filter-branch --index-filter "git rm --cached --ignore-unmatch $@" --force -- --branches --tags $first_occurrence^..
   echo "Wipe out refs..."
   rm -rf .git/refs/original/ .git/refs/remotes/ .git/*_HEAD .git/logs/
   (git for-each-ref --format="%(refname)" refs/original/ || echo :) | xargs --no-run-if-empty -n1 git update-ref -d
